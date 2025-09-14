@@ -1,0 +1,78 @@
+name: Release (Gradle)
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to release (e.g., 1.2.3). If set, a tag v<version> is created and released.'
+        required: false
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # (optional) create tag when run manually
+      - name: Create tag (workflow_dispatch)
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.version != '' }}
+        run: |
+          set -euxo pipefail
+          VERSION="${{ inputs.version }}"
+          git config user.name "${{ github.actor }}"
+          git config user.email "${{ github.actor }}@users.noreply.github.com"
+          git tag "v${VERSION}"
+          git push origin "v${VERSION}"
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v3
+
+      - name: Verify
+        run: ./gradlew --no-daemon clean build jacocoTestReport jacocoTestCoverageVerification
+
+      - name: Publish to Sonatype (staging) & release (debug)
+        env:
+          OSSRH_USERNAME: ${{ secrets.OSSRH_USERNAME }}
+          OSSRH_PASSWORD: ${{ secrets.OSSRH_PASSWORD }}
+          SIGNING_KEY: ${{ secrets.GPG_PRIVATE_KEY }}
+          SIGNING_PASSWORD: ${{ secrets.GPG_PASSPHRASE }}
+        run: |
+          ./gradlew --no-daemon --info publishToSonatype closeAndReleaseSonatypeStagingRepository
+
+      - name: Upload JaCoCo HTML report
+        if: always() && success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: jacoco-html
+          path: build/reports/jacoco/test/html
+
+      - name: Create GitHub Release (push tag)
+        if: ${{ github.event_name == 'push' }}
+        uses: softprops/action-gh-release@v2
+        with:
+          generate_release_notes: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Create GitHub Release (manual)
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.version != '' }}
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ inputs.version }}
+          generate_release_notes: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

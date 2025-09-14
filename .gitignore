@@ -1,0 +1,49 @@
+# === Java/Gradle ===
+.gradle/
+**/build/
+
+# Logs
+*.log
+hs_err_pid*
+replay_pid*
+
+# === IntelliJ IDEA ===
+.idea/
+*.iml
+*.ipr
+*.iws
+# .idea/codeStyles/ , .idea/inspectionProfiles/ — если хочешь — убери из игнора
+
+# IntelliJ
+out/
+
+# === Eclipse ===
+.apt_generated/
+.classpath
+.factorypath
+.project
+.settings/
+.springBeans
+.sts4-cache
+
+# === NetBeans ===
+/nbproject/private/
+/nbbuild/
+/dist/
+/nbdist/
+/.nb-gradle/
+
+# === VS Code ===
+.vscode/
+
+# === OS ===
+.DS_Store
+Thumbs.db
+
+# === Env/local ===
+.env
+.env.*
+
+# build outputs
+**/build/
+target/
