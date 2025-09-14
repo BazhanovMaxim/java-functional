@@ -37,14 +37,14 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: jacoco-html-jdk-${{ matrix.java }}   # 👈 уникальное имя
+          name: jacoco-html-jdk-${{ matrix.java }}
           path: target/site/jacoco
 
       - name: Archive surefire reports
         if: failure()
         uses: actions/upload-artifact@v4
         with:
-          name: surefire-reports-jdk-${{ matrix.java }}  # 👈 уникальное имя
+          name: surefire-reports-jdk-${{ matrix.java }}
           path: |
             **/target/surefire-reports
             **/target/failsafe-reports
