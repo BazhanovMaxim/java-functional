@@ -1,4 +1,4 @@
-name: Release
+name: Release (Gradle)
 
 on:
   push:
@@ -32,56 +32,35 @@ jobs:
           git tag "v${VERSION}"
           git push origin "v${VERSION}"
 
-      # 0) Assert project-local settings exist and are sane (no Maven-encrypted {…})
-      - name: Assert .mvn/settings.xml exists and is plain
-        run: |
-          set -e
-          test -f .mvn/settings.xml || (echo "::error::.mvn/settings.xml not found in repo"; exit 1)
-          # No Maven-encrypted password blocks
-          if grep -Ezo '<password>\s*\{.+\}\s*</password>' .mvn/settings.xml; then
-            echo "::error::Found Maven-encrypted {…} in .mvn/settings.xml. It must reference env vars, not encrypted values."
-            exit 1
-          fi
-          # Show masked server block for ossrh (values are env placeholders, safe to print)
-          awk '/<server>/,/<\/server>/' .mvn/settings.xml | sed -n '/<id>ossrh<\/id>/,/<\/server>/p'             | sed -E 's#(<username>).*?(</username>)#\1***MASKED***\2#; s#(<password>).*?(</password>)#\1***MASKED***\2#'
-
-      # 1) Ensure no Maven master-password file (not needed in CI)
-      - name: Ensure no Maven master-password file
-        run: rm -f ~/.m2/settings-security.xml
-
-      # 2) Set up JDK and import GPG (servers are controlled via .mvn/settings.xml)
-      - name: Set up JDK 17 + import GPG
+      - name: Set up JDK 17
         uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: '17'
-          cache: maven
-          gpg-private-key: ${{ secrets.GPG_PRIVATE_KEY }}
-          gpg-passphrase: ${{ secrets.GPG_PASSPHRASE }}
 
-      - name: GPG sanity
-        run: gpg --list-secret-keys --keyid-format LONG
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v3
 
-      # 3) Build, sign and deploy to OSSRH (staging). 
-      # .mvn/maven.config should contain "-s .mvn/settings.xml" so we don't repeat it here.
-      - name: Build, test, sign & deploy to OSSRH (staging)
+      - name: Verify
+        run: ./gradlew --no-daemon clean build jacocoTestReport jacocoTestCoverageVerification
+
+      - name: Publish to Sonatype (staging) & release
         env:
           OSSRH_USERNAME: ${{ secrets.OSSRH_USERNAME }}
           OSSRH_PASSWORD: ${{ secrets.OSSRH_PASSWORD }}
-          MAVEN_GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
+          SIGNING_KEY: ${{ secrets.GPG_PRIVATE_KEY }}      # ASCII-armored
+          SIGNING_PASSWORD: ${{ secrets.GPG_PASSPHRASE }}
         run: |
           set -euxo pipefail
-          mvn -B -Prelease clean verify
-          mvn -B -Prelease deploy -DskipTests=false
+          ./gradlew --no-daemon publishToSonatype closeAndReleaseSonatypeStagingRepository
 
       - name: Upload JaCoCo HTML report
         if: always() && success()
         uses: actions/upload-artifact@v4
         with:
           name: jacoco-html
-          path: target/site/jacoco
+          path: build/reports/jacoco/test/html
 
-      # Publish GitHub release when triggered by push tag
       - name: Create GitHub Release (push tag)
         if: ${{ github.event_name == 'push' }}
         uses: softprops/action-gh-release@v2
@@ -90,7 +69,6 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      # Publish GitHub release when triggered manually with version
       - name: Create GitHub Release (manual)
         if: ${{ github.event_name == 'workflow_dispatch' && inputs.version != '' }}
         uses: softprops/action-gh-release@v2
