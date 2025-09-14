@@ -21,6 +21,14 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Assert OSSRH password is not Maven-encrypted
+        run: |
+          mvn -q help:effective-settings -Doutput=effective-settings.xml
+          if grep -Ezo "<server>.*<id>ossrh</id>.*<password>\s*\{.*\}\s*</password>" effective-settings.xml; then
+            echo "::error::Your OSSRH_PASSWORD looks Maven-encrypted ({...}). Store PLAIN password/token in GitHub Secret."
+            exit 1
+          fi
+
       # Если запуск из UI и введена версия — создаём тег v<version> и пушим его
       - name: Create tag (workflow_dispatch)
         if: ${{ github.event_name == 'workflow_dispatch' && inputs.version != '' }}
@@ -43,8 +51,8 @@ jobs:
           java-version: '17'
           cache: maven
           server-id: ossrh
-          server-username: OSSRH_USERNAME
-          server-password: OSSRH_PASSWORD
+          server-username: ${{ secrets.OSSRH_USERNAME }}   # <-- значения, а не имена env
+          server-password: ${{ secrets.OSSRH_PASSWORD }}
           gpg-private-key: ${{ secrets.GPG_PRIVATE_KEY }}
           gpg-passphrase: ${{ secrets.GPG_PASSPHRASE }}
         env:
