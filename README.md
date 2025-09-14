@@ -1,17 +1,18 @@
 # java-functional • Option · Try · Either
 
-![Java](https://img.shields.io/badge/Java-17%2B-007396)
+![Java](https://img.shields.io/badge/Java-11%2B-007396)
 ![Build](https://img.shields.io/badge/build-Maven-blue)
 ![Coverage](https://img.shields.io/badge/JaCoCo-100%25_lines%20%2F%20100%25_branches-brightgreen)
 [![Maven Central](https://img.shields.io/maven-central/v/io.github.bazhanovmaxim/java-functional)](https://central.sonatype.com/artifact/io.github.bazhanovmaxim/java-functional)
-[![JitPack](https://img.shields.io/jitpack/v/github/bazhanovmaximmaxim/java-functional)](https://jitpack.io/#bazhanovmaxim/java-functional)
+[![JitPack](https://img.shields.io/jitpack/v/github/BazhanovMaxim/java-functional)](https://jitpack.io/#BazhanovMaxim/java-functional)
+[![CI](https://github.com/BazhanovMaxim/java-functional/actions/workflows/ci.yml/badge.svg)](https://github.com/BazhanovMaxim/java-functional/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-black.svg)](#license)
 
 Small, pragmatic functional utilities for Java:
 
-- **Option&lt;T&gt;** – a lightweight alternative to `Optional` with Kotlin-style helpers: `apply`, `and`, `takeIf/Unless`, `ifInstance`, and ergonomic `ifPresentOrElse` overloads.
-- **Try&lt;T&gt;** – a result type representing success or failure, with `map/flatMap`, `recover`, `fold`, `onSuccess/onFailure`, and bridges to Option / Either.
-- **Either = Any&lt;L,R&gt;** – a classic sum type (`Left / Right`) featuring `mapLeft`, `bimap`, `swap`, `joinLeft/joinRight`, and conversions.
+- **Option<T>** – a lightweight alternative to `Optional` with Kotlin-style helpers: `apply`, `and`, `takeIf/Unless`, `ifInstance`, and ergonomic `ifPresentOrElse` overloads.
+- **Try<T>** – a result type representing success or failure, with `map/flatMap`, `recover`, `fold`, `onSuccess/onFailure`, and bridges to Option / Either.
+- **Either = Any<L,R>** – a classic sum type (`Left / Right`) featuring `mapLeft`, `bimap`, `swap`, `joinLeft/joinRight`, and conversions.
 
 The codebase is fully covered by tests: **100% lines / 100% branches (JaCoCo)**.
 
@@ -20,19 +21,19 @@ The codebase is fully covered by tests: **100% lines / 100% branches (JaCoCo)**.
 ## Table of contents
 
 - [Installation](#installation)
-  - [Maven Central](#maven-central)
-  - [Gradle (Kotlin DSL)](#gradle-kotlin-dsl)
-  - [Gradle (Groovy DSL)](#gradle-groovy-dsl)
-  - [JitPack](#jitpack)
+    - [Maven Central](#maven-central)
+    - [Gradle (Kotlin DSL)](#gradle-kotlin-dsl)
+    - [Gradle (Groovy DSL)](#gradle-groovy-dsl)
+    - [JitPack](#jitpack)
 - [Quick start](#quick-start)
 - [Option](#option)
 - [Try](#try)
-- [Either (Any&lt;L,R&gt;)](#either-anylr)
+- [Either (Any<L,R>)](#either-anylr)
 - [Kotlin ↔ Java equivalence](#kotlin--java-equivalence)
 - [Migration](#migration)
-  - [From Optional](#from-optional)
-  - [From Vavr](#from-vavr)
-  - [From Arrow (Kotlin)](#from-arrow-kotlin)
+    - [From Optional](#from-optional)
+    - [From Vavr](#from-vavr)
+    - [From Arrow (Kotlin)](#from-arrow-kotlin)
 - [Design notes](#design-notes)
 - [Testing & Coverage](#testing--coverage)
 - [CI (GitHub Actions)](#ci-github-actions)
@@ -85,7 +86,7 @@ repositories {
     maven("https://jitpack.io")
 }
 dependencies {
-    implementation("com.github.bazhanovmaxim:java-functional:<tag-or-commit>")
+    implementation("com.github.BazhanovMaxim:java-functional:<tag-or-commit>")
 }
 ```
 
@@ -99,9 +100,9 @@ dependencies {
 </repositories>
 
 <dependency>
-  <groupId>com.github.bazhanovmaximmaxim</groupId>
+  <groupId>com.github.BazhanovMaxim</groupId>
   <artifactId>java-functional</artifactId>
-  <version>&lt;tag-or-commit&gt;</version>
+  <version><tag-or-commit></version>
 </dependency>
 ```
 
@@ -110,9 +111,9 @@ dependencies {
 ## Quick start
 
 ```java
-import org.bazhanovmaxim.option.Option;
-import org.bazhanovmaxim.result.Try;
-import org.bazhanovmaxim.any.*;
+import org.bazhanov.option.Option;
+import org.bazhanov.result.Try;
+import org.bazhanov.any.*;
 
 Option.of("  hello  ")
       .map(String::trim)
@@ -222,7 +223,7 @@ ok.toEither();           // Right(20) / Left(exception)
 
 ---
 
-## Either (Any&lt;L,R&gt;)
+## Either (Any<L,R>)
 
 `Any<L,R>` is a classic sum type:
 - **Left(L)** typically represents an error/diagnostic value.
@@ -295,9 +296,9 @@ r.toOptional();  // Right -> java.util.Optional
 
 | Vavr                                             | This library                                           |
 |--------------------------------------------------|--------------------------------------------------------|
-| `io.vavr.control.Option`                         | `org.bazhanovmaxim.option.Option`                           |
-| `Try` (`map`, `flatMap`, `recover`, `onSuccess`) | `org.bazhanovmaxim.result.Try` (same method names)          |
-| `Either<L,R>` (`mapLeft`, `bimap`, `swap`)       | `org.bazhanovmaxim.any.Any` + `Left/Right` (same functions) |
+| `io.vavr.control.Option`                         | `org.bazhanov.option.Option`                           |
+| `Try` (`map`, `flatMap`, `recover`, `onSuccess`) | `org.bazhanov.result.Try` (same method names)          |
+| `Either<L,R>` (`mapLeft`, `bimap`, `swap`)       | `org.bazhanov.any.Any` + `Left/Right` (same functions) |
 | `Option.filter`, `peek`                          | `Option.filter`, `apply`                               |
 | `Try.toEither()`                                 | `Try.toEither()` (provided)                            |
 
@@ -376,26 +377,6 @@ Add a status badge pointing to your workflow if you want it in the header.
 ## License
 
 MIT — see [LICENSE](./LICENSE).
-
-```text
-Copyright (c) 2025 bazhanovmaximMaxim
-
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to do so, subject to the following conditions:
-
-The above copyright notice and this permission notice shall be included
-in all copies or substantial portions of the Software.
-
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY,
-WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF
-OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
-```
 
 ---
 

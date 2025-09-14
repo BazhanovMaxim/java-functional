@@ -35,7 +35,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Set up JDK 21 with Maven Central & GPG
+      - name: Set up JDK 17 with Maven Central & GPG
         uses: actions/setup-java@v4
         with:
           distribution: temurin

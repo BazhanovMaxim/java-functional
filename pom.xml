@@ -4,9 +4,24 @@
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
     <modelVersion>4.0.0</modelVersion>
 
-    <groupId>org.bazhanovmaxim</groupId>
+    <!-- REQUIRED for OSSRH/Maven Central -->
+    <groupId>io.github.bazhanovmaxim</groupId>
     <artifactId>java-functional</artifactId>
     <version>1.0.0</version>
+    <packaging>jar</packaging>
+
+    <!-- Central requires these: -->
+    <name>java-functional</name>
+    <description>Option · Try · Either for Java with Kotlin-like ergonomics</description>
+    <url>https://github.com/BazhanovMaxim/java-functional</url>
+
+    <licenses>
+        <license>
+            <name>MIT License</name>
+            <url>https://github.com/BazhanovMaxim/java-functional/blob/main/LICENSE</url>
+            <distribution>repo</distribution>
+        </license>
+    </licenses>
 
     <scm>
         <url>https://github.com/BazhanovMaxim/java-functional</url>
@@ -17,7 +32,9 @@
 
     <developers>
         <developer>
+            <id>bazhanovmaxim</id>
             <name>Maxim Bazhanov</name>
+            <url>https://github.com/BazhanovMaxim</url>
         </developer>
     </developers>
 
@@ -33,9 +50,10 @@
         <plugin.maven-source-plugin.version>3.3.0</plugin.maven-source-plugin.version>
         <plugin.maven-javadoc-plugin.version>3.6.3</plugin.maven-javadoc-plugin.version>
         <plugin.nexus-staging-maven-plugin.version>1.6.13</plugin.nexus-staging-maven-plugin.version>
+        <plugin.maven-jar-plugin.version>3.4.2</plugin.maven-jar-plugin.version>
 
-        <maven.compiler.source>17</maven.compiler.source>
-        <maven.compiler.target>17</maven.compiler.target>
+        <maven.compiler.source>11</maven.compiler.source>
+        <maven.compiler.target>11</maven.compiler.target>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
     </properties>
 
@@ -51,29 +69,28 @@
             <groupId>org.jetbrains</groupId>
             <artifactId>annotations</artifactId>
             <version>${dependency.jetbrain-annotations.version}</version>
+            <optional>true</optional>
         </dependency>
 
+        <!-- Tests -->
         <dependency>
             <groupId>org.junit.jupiter</groupId>
             <artifactId>junit-jupiter-api</artifactId>
             <version>${dependency.junit-jupiter.version}</version>
             <scope>test</scope>
         </dependency>
-
         <dependency>
             <groupId>org.junit.jupiter</groupId>
             <artifactId>junit-jupiter-params</artifactId>
             <version>${dependency.junit-jupiter.version}</version>
             <scope>test</scope>
         </dependency>
-
         <dependency>
             <groupId>org.junit.jupiter</groupId>
             <artifactId>junit-jupiter-engine</artifactId>
             <version>${dependency.junit-jupiter.version}</version>
             <scope>test</scope>
         </dependency>
-
         <dependency>
             <groupId>org.assertj</groupId>
             <artifactId>assertj-core</artifactId>
@@ -84,6 +101,21 @@
 
     <build>
         <plugins>
+            <!-- Optional but nice: stable JPMS name -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-jar-plugin</artifactId>
+                <version>${plugin.maven-jar-plugin.version}</version>
+                <configuration>
+                    <archive>
+                        <manifestEntries>
+                            <Automatic-Module-Name>io.github.bazhanovmaxim.functional</Automatic-Module-Name>
+                        </manifestEntries>
+                    </archive>
+                </configuration>
+            </plugin>
+
+            <!-- JaCoCo -->
             <plugin>
                 <groupId>org.jacoco</groupId>
                 <artifactId>jacoco-maven-plugin</artifactId>
@@ -91,22 +123,16 @@
                 <executions>
                     <execution>
                         <id>prepare-agent</id>
-                        <goals>
-                            <goal>prepare-agent</goal>
-                        </goals>
+                        <goals><goal>prepare-agent</goal></goals>
                     </execution>
                     <execution>
                         <id>report</id>
                         <phase>test</phase>
-                        <goals>
-                            <goal>report</goal>
-                        </goals>
+                        <goals><goal>report</goal></goals>
                     </execution>
                     <execution>
                         <id>check</id>
-                        <goals>
-                            <goal>check</goal>
-                        </goals>
+                        <goals><goal>check</goal></goals>
                         <configuration>
                             <rules>
                                 <rule>
@@ -130,6 +156,7 @@
                 </executions>
             </plugin>
 
+            <!-- Surefire -->
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-surefire-plugin</artifactId>
@@ -196,7 +223,7 @@
                         </executions>
                     </plugin>
 
-                    <!-- (Опционально) автоматическое закрытие/release staging -->
+                    <!-- auto close & release staging -->
                     <plugin>
                         <groupId>org.sonatype.plugins</groupId>
                         <artifactId>nexus-staging-maven-plugin</artifactId>

@@ -120,7 +120,10 @@ public final class Left<L, R> implements Any<L, R> {
 
     @Override
     public boolean equals(Object o) {
-        return (o instanceof Left<?, ?> l) && Objects.equals(value, l.value);
+        if (this == o) return true;
+        if (!(o instanceof Left)) return false;
+        Left<?, ?> l = (Left<?, ?>) o;
+        return Objects.equals(this.value, l.value);
     }
 
     @Override

@@ -431,7 +431,8 @@ public final class Option<T> {
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
-        if (!(o instanceof Option<?> other)) return false;
+        if (!(o instanceof Option)) return false;
+        Option<?> other = (Option<?>) o;
         return Objects.equals(this.value, other.value);
     }
 

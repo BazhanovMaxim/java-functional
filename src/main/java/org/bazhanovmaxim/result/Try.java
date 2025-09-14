@@ -24,7 +24,7 @@ import java.util.function.Supplier;
  *     .recover(ex -> 0);              // 0
  * }</pre>
  */
-public sealed interface Try<T> permits Try.Success, Try.Failure {
+public interface Try<T> {
 
     /**
      * Create Success.
@@ -199,8 +199,10 @@ public sealed interface Try<T> permits Try.Success, Try.Failure {
      */
     default T getOrThrow() {
         if (isSuccess()) return getOrNull();
-        var e = exceptionOrNull();
-        if (e instanceof RuntimeException re) throw re;
+        Throwable e = exceptionOrNull();
+        if (e instanceof RuntimeException) {
+            throw (RuntimeException) e;
+        }
         throw new RuntimeException(e);
     }
 
@@ -260,7 +262,10 @@ public sealed interface Try<T> permits Try.Success, Try.Failure {
 
         @Override
         public boolean equals(Object o) {
-            return (o instanceof Success<?> s) && Objects.equals(value, s.value);
+            if (this == o) return true;
+            if (!(o instanceof Success)) return false;
+            Success<?> s = (Success<?>) o;
+            return Objects.equals(this.value, s.value);
         }
 
         @Override
@@ -299,13 +304,23 @@ public sealed interface Try<T> permits Try.Success, Try.Failure {
         @Override
         public boolean equals(Object o) {
             if (this == o) return true;
-            if (!(o instanceof Failure<?> f)) return false;
-            return e.getClass().equals(f.e.getClass()) && Objects.equals(e.getMessage(), f.e.getMessage());
+            if (!(o instanceof Failure)) return false;
+            Failure<?> f = (Failure<?>) o;
+
+            Throwable a = this.e;
+            Throwable b = f.e;
+
+            if (a == b) return true;
+            if (a == null || b == null) return false;
+
+            return a.getClass().equals(b.getClass())
+                    && Objects.equals(a.getMessage(), b.getMessage());
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(e.getClass(), e.getMessage());
+            Throwable a = this.e;
+            return Objects.hash(a.getClass(), a.getMessage());
         }
     }
 }

@@ -127,7 +127,10 @@ public final class Right<L, R> implements Any<L, R> {
 
     @Override
     public boolean equals(Object o) {
-        return (o instanceof Right<?, ?> r) && Objects.equals(value, r.value);
+        if (this == o) return true;
+        if (!(o instanceof Right)) return false;
+        Right<?, ?> r = (Right<?, ?>) o;
+        return Objects.equals(this.value, r.value);
     }
 
     @Override
