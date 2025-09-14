@@ -41,16 +41,10 @@ jobs:
           server-username: OSSRH_USERNAME
           server-password: OSSRH_PASSWORD
           gpg-private-key: ${{ secrets.GPG_PRIVATE_KEY }}
-          gpg-passphrase:  ${{ secrets.GPG_PASSPHRASE }}
+          gpg-passphrase: ${{ secrets.GPG_PASSPHRASE }}
         env:
           OSSRH_USERNAME: ${{ secrets.OSSRH_USERNAME }}
           OSSRH_PASSWORD: ${{ secrets.OSSRH_PASSWORD }}
-
-      # Workaround для maven-gpg-plugin, чтобы он не искал settings-security.xml
-      - name: Workaround for Maven security (settings-security.xml)
-        run: |
-          mkdir -p ~/.m2
-          echo '<settingsSecurity><master>{}</master></settingsSecurity>' > ~/.m2/settings-security.xml
 
       - name: Build, test, sign & deploy to OSSRH (staging)
         env:
