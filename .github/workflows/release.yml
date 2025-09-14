@@ -21,7 +21,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      # Если запуск из UI и введена версия — создаём тег v<version> и пушим его
+      # (опционально) создание тега при ручном запуске
       - name: Create tag (workflow_dispatch)
         if: ${{ github.event_name == 'workflow_dispatch' && inputs.version != '' }}
         run: |
@@ -31,73 +31,56 @@ jobs:
           git tag "v${VERSION}"
           git push origin "v${VERSION}"
 
-      - name: Set up JDK 17 with Maven Central & GPG
+      # 1) Пишем СВОЙ settings.xml с plain-токенами
+      - name: Write project-local Maven settings
+        env:
+          OSSRH_USERNAME: ${{ secrets.OSSRH_USERNAME }}   # plain, из Sonatype User Token
+          OSSRH_PASSWORD: ${{ secrets.OSSRH_PASSWORD }}   # plain
+        run: |
+          mkdir -p .mvn
+          cat > .mvn/settings.xml <<EOF
+          <settings xmlns="http://maven.apache.org/SETTINGS/1.0.0"
+          xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+          xsi:schemaLocation="http://maven.apache.org/SETTINGS/1.0.0 https://maven.apache.org/xsd/settings-1.0.0.xsd">
+          <servers>
+          <server>
+          <id>ossrh</id>
+          <username>${OSSRH_USERNAME}</username>
+          <password>${OSSRH_PASSWORD}</password>
+          </server>
+          </servers>
+          </settings>
+          EOF
+          # Чтобы не повторять -s во всех командах
+          echo "-s .mvn/settings.xml" >> .mvn/maven.config
+
+      # 2) На всякий: никаких master-password файлов
+      - name: Ensure no Maven master-password file
+        run: rm -f ~/.m2/settings-security.xml
+
+      # 3) Диагностика (без утечки секретов)
+      - name: Assert password is not Maven-encrypted
+        run: |
+          if grep -Ezo '<password>\s*\{.+\}\s*</password>' .mvn/settings.xml; then
+            echo "::error::Found Maven-encrypted {…} in .mvn/settings.xml. Need PLAIN Sonatype token."
+            exit 1
+          fi
+          # Печатаем замаскированный server-блок
+          awk '/<server>/,/<\/server>/' .mvn/settings.xml \
+            | sed -n '/<id>ossrh<\/id>/,/<\/server>/p' \
+            | sed -E 's#(<username>).*?(</username>)#\1***REDACTED***\2#; s#(<password>).*?(</password>)#\1***REDACTED***\2#'
+
+      # 4) Ставим JDK и импортируем GPG-ключ (БЕЗ серверных кредов)
+      - name: Set up JDK 17 + import GPG
         uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: '17'
           cache: maven
-          server-id: ossrh
-          server-username: ${{ secrets.OSSRH_USERNAME }}   # PLAIN!
-          server-password: ${{ secrets.OSSRH_PASSWORD }}   # PLAIN!
-          gpg-private-key: ${{ secrets.GPG_PRIVATE_KEY }}  # ascii-armored
+          gpg-private-key: ${{ secrets.GPG_PRIVATE_KEY }}
           gpg-passphrase: ${{ secrets.GPG_PASSPHRASE }}
 
-      - name: show ossrh server in ~/.m2/settings.xml (masked)
-        run: |
-          S=~/.m2/settings.xml
-          echo "--- servers excerpt (masked) ---"
-          awk '
-            /<server>/,/<\/server>/ {
-              if ($0 ~ /<password>/) sub(/<password>.*<\/password>/,"<password>***REDACTED***</password>")
-              if ($0 ~ /<username>/) sub(/<username>.*<\/username>/,"<username>***REDACTED***</username>")
-              print
-            }
-          ' "$S" | sed -n '/<id>ossrh<\/id>/,/<\/server>/p'
-
-      - name: Assert password is PLAIN (not Maven-encrypted {…})
-        run: |
-          S=~/.m2/settings.xml
-          test -f "$S" || (echo "::error::No ~/.m2/settings.xml"; exit 1)
-          if grep -Ezo '<server>[^<]*<id>ossrh</id>[^<]*<password>\s*\{.+\}\s*</password>' "$S"; then
-            echo "::error::Found Maven-encrypted password {…}. Put PLAIN Sonatype token to OSSRH_PASSWORD."
-            exit 1
-          fi
-          # Безопасная телеметрия: длины и sha256 (секреты при этом не «палятся»)
-          echo "username length: $(printf "%s" "${{ secrets.OSSRH_USERNAME }}" | wc -c)"
-          echo "password length: $(printf "%s" "${{ secrets.OSSRH_PASSWORD }}" | wc -c)"
-          echo "password sha256: $(printf "%s" "${{ secrets.OSSRH_PASSWORD }}" | sha256sum | awk '{print $1}')"
-
-      - name: Ensure no project-level settings override
-        run: |
-          # Проверим, что нет .mvn/settings.xml в репозитории, который переезжает поверх
-          if [ -f ".mvn/settings.xml" ]; then
-            echo "::warning::.mvn/settings.xml found in repo — it may override runner settings"
-            awk '
-              /<server>/,/<\/server>/ {print}
-            ' .mvn/settings.xml | sed -n '/<id>ossrh<\/id>/,/<\/server>/p'
-          fi
-
-
-      # Не нужен master-password; гарантированно убираем
-      - name: Ensure no Maven master-password file
-        run: rm -f ~/.m2/settings-security.xml
-
-      # Жёсткая валидация: пароль не должен быть Maven-encrypted {…}
-      - name: Assert OSSRH password is plain (not Maven-encrypted)
-        run: |
-          SETTINGS=~/.m2/settings.xml
-          test -f "$SETTINGS" || (echo "::error::No ~/.m2/settings.xml"; exit 1)
-          if grep -Ezo '<server>[^<]*<id>ossrh</id>[^<]*<password>\s*\{.+\}\s*</password>' "$SETTINGS"; then
-            echo "::error::OSSRH password looks Maven-encrypted ({...}). Put PLAIN Sonatype token to OSSRH_PASSWORD secret."
-            exit 1
-          fi
-
-      # Опционально: показать, что ключ импортирован
-      - name: GPG sanity
-        run: gpg --list-secret-keys --keyid-format LONG
-
-      # Выносим passphrase в env, чтобы не было депрекейта
+      # 5) Сборка + деплой. Passphrase через env, staging сделает nexus-staging-plugin
       - name: Build, test, sign & deploy to OSSRH (staging)
         env:
           MAVEN_GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
@@ -112,7 +95,6 @@ jobs:
           name: jacoco-html
           path: target/site/jacoco
 
-      # Release when triggered by push tag
       - name: Create GitHub Release (push tag)
         if: ${{ github.event_name == 'push' }}
         uses: softprops/action-gh-release@v2
@@ -121,7 +103,6 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      # Release when triggered manually with version
       - name: Create GitHub Release (manual)
         if: ${{ github.event_name == 'workflow_dispatch' && inputs.version != '' }}
         uses: softprops/action-gh-release@v2
