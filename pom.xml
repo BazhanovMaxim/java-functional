@@ -46,7 +46,7 @@
 
         <plugin.jacoco-maven-plugin.version>0.8.12</plugin.jacoco-maven-plugin.version>
         <plugin.maven-surefire-plugin.version>3.2.5</plugin.maven-surefire-plugin.version>
-        <plugin.maven-gpg-plugin.version>3.2.4</plugin.maven-gpg-plugin.version>
+        <plugin.maven-gpg-plugin.version>3.1.0</plugin.maven-gpg-plugin.version>
         <plugin.maven-source-plugin.version>3.3.0</plugin.maven-source-plugin.version>
         <plugin.maven-javadoc-plugin.version>3.6.3</plugin.maven-javadoc-plugin.version>
         <plugin.nexus-staging-maven-plugin.version>1.6.13</plugin.nexus-staging-maven-plugin.version>
