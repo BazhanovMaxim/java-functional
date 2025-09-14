@@ -212,6 +212,8 @@
                                 <id>sign-artifacts</id>
                                 <phase>verify</phase>
                                 <goals><goal>sign</goal></goals>
+                                <!-- читаем пароль из файла; путь зададим через env -->
+                                <passphraseFile>${env.GPG_PASSPHRASE_FILE}</passphraseFile>
                                 <configuration>
                                     <gpgArguments>
                                         <arg>--batch</arg>
