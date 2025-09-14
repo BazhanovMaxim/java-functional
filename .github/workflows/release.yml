@@ -44,15 +44,14 @@ jobs:
       - name: Verify
         run: ./gradlew --no-daemon clean build jacocoTestReport jacocoTestCoverageVerification
 
-      - name: Publish to Sonatype (staging) & release
+      - name: Publish to Sonatype (staging) & release (debug)
         env:
           OSSRH_USERNAME: ${{ secrets.OSSRH_USERNAME }}
           OSSRH_PASSWORD: ${{ secrets.OSSRH_PASSWORD }}
-          SIGNING_KEY: ${{ secrets.GPG_PRIVATE_KEY }}      # ASCII-armored
+          SIGNING_KEY: ${{ secrets.GPG_PRIVATE_KEY }}
           SIGNING_PASSWORD: ${{ secrets.GPG_PASSPHRASE }}
         run: |
-          set -euxo pipefail
-          ./gradlew --no-daemon publishToSonatype closeAndReleaseSonatypeStagingRepository
+          ./gradlew --no-daemon --info publishToSonatype closeAndReleaseSonatypeStagingRepository
 
       - name: Upload JaCoCo HTML report
         if: always() && success()
