@@ -31,6 +31,11 @@ jobs:
           git tag "v${VERSION}"
           git push origin "v${VERSION}"
 
+      - name: Show effective settings (debug)
+        run: |
+          mvn -q help:effective-settings -Doutput=effective-settings.xml
+          grep -n "server" -n effective-settings.xml || true
+
       - name: Set up JDK 17 with Maven Central & GPG
         uses: actions/setup-java@v4
         with:
