@@ -34,51 +34,47 @@ jobs:
       # 1) Пишем СВОЙ settings.xml с plain-токенами
       - name: Write project-local Maven settings
         env:
-          OSSRH_USERNAME: ${{ secrets.OSSRH_USERNAME }}   # plain, из Sonatype User Token
-          OSSRH_PASSWORD: ${{ secrets.OSSRH_PASSWORD }}   # plain
+          OSSRH_USERNAME: ${{ secrets.OSSRH_USERNAME }}
+          OSSRH_PASSWORD: ${{ secrets.OSSRH_PASSWORD }}
         run: |
+          set -euxo pipefail
           mkdir -p .mvn
+          # ВАЖНО: без отступов перед <settings> и перед EOF
           cat > .mvn/settings.xml <<EOF
-          <settings xmlns="http://maven.apache.org/SETTINGS/1.0.0"
-          xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-          xsi:schemaLocation="http://maven.apache.org/SETTINGS/1.0.0 https://maven.apache.org/xsd/settings-1.0.0.xsd">
-          <servers>
-          <server>
-          <id>ossrh</id>
-          <username>${OSSRH_USERNAME}</username>
-          <password>${OSSRH_PASSWORD}</password>
-          </server>
-          </servers>
-          </settings>
-          EOF
-          # Чтобы не повторять -s во всех командах
-          echo "-s .mvn/settings.xml" >> .mvn/maven.config
+         <settings xmlns="http://maven.apache.org/SETTINGS/1.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/SETTINGS/1.0.0 https://maven.apache.org/xsd/settings-1.0.0.xsd">
+         <servers>
+         <server>
+         <id>ossrh</id>
+         <username>${OSSRH_USERNAME}</username>
+         <password>${OSSRH_PASSWORD}</password>
+         </server>
+         </servers>
+         </settings>
+         EOF
+         # Проверим, что файл реально есть и читается
+         test -f .mvn/settings.xml
+         ls -la .mvn
+         # Бонус: покажем замаскированный блок
+         awk '/<server>/,/<\/server>/' .mvn/settings.xml \
+         | sed -n '/<id>ossrh<\/id>/,/<\/server>/p' \
+         | sed -E 's#(<username>).*?(</username>)#\1***REDACTED***\2#; s#(<password>).*?(</password>)#\1***REDACTED***\2#'
 
-      # 2) На всякий: никаких master-password файлов
       - name: Ensure no Maven master-password file
         run: rm -f ~/.m2/settings-security.xml
 
-      # 3) Диагностика (без утечки секретов)
-      - name: Assert password is not Maven-encrypted
-        run: |
-          if grep -Ezo '<password>\s*\{.+\}\s*</password>' .mvn/settings.xml; then
-            echo "::error::Found Maven-encrypted {…} in .mvn/settings.xml. Need PLAIN Sonatype token."
-            exit 1
-          fi
-          # Печатаем замаскированный server-блок
-          awk '/<server>/,/<\/server>/' .mvn/settings.xml \
-            | sed -n '/<id>ossrh<\/id>/,/<\/server>/p' \
-            | sed -E 's#(<username>).*?(</username>)#\1***REDACTED***\2#; s#(<password>).*?(</password>)#\1***REDACTED***\2#'
+      - name: GPG sanity
+        run: gpg --list-secret-keys --keyid-format LONG
 
-      # 4) Ставим JDK и импортируем GPG-ключ (БЕЗ серверных кредов)
-      - name: Set up JDK 17 + import GPG
-        uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: '17'
-          cache: maven
-          gpg-private-key: ${{ secrets.GPG_PRIVATE_KEY }}
-          gpg-passphrase: ${{ secrets.GPG_PASSPHRASE }}
+      - name: Build, test, sign & deploy to OSSRH (staging)
+        env:
+          MAVEN_GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
+        run: |
+          set -euxo pipefail
+          mvn -B -s .mvn/settings.xml -Prelease clean verify
+          mvn -B -s .mvn/settings.xml -Prelease deploy -DskipTests=false
+
 
       # 5) Сборка + деплой. Passphrase через env, staging сделает nexus-staging-plugin
       - name: Build, test, sign & deploy to OSSRH (staging)
