@@ -21,14 +21,6 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Assert OSSRH password is not Maven-encrypted
-        run: |
-          mvn -q help:effective-settings -Doutput=effective-settings.xml
-          if grep -Ezo "<server>.*<id>ossrh</id>.*<password>\s*\{.*\}\s*</password>" effective-settings.xml; then
-            echo "::error::Your OSSRH_PASSWORD looks Maven-encrypted ({...}). Store PLAIN password/token in GitHub Secret."
-            exit 1
-          fi
-
       # Если запуск из UI и введена версия — создаём тег v<version> и пушим его
       - name: Create tag (workflow_dispatch)
         if: ${{ github.event_name == 'workflow_dispatch' && inputs.version != '' }}
@@ -39,11 +31,6 @@ jobs:
           git tag "v${VERSION}"
           git push origin "v${VERSION}"
 
-      - name: Show effective settings (debug)
-        run: |
-          mvn -q help:effective-settings -Doutput=effective-settings.xml
-          grep -n "server" -n effective-settings.xml || true
-
       - name: Set up JDK 17 with Maven Central & GPG
         uses: actions/setup-java@v4
         with:
@@ -51,27 +38,36 @@ jobs:
           java-version: '17'
           cache: maven
           server-id: ossrh
-          server-username: ${{ secrets.OSSRH_USERNAME }}   # <-- значения, а не имена env
-          server-password: ${{ secrets.OSSRH_PASSWORD }}
-          gpg-private-key: ${{ secrets.GPG_PRIVATE_KEY }}
+          server-username: ${{ secrets.OSSRH_USERNAME }}   # PLAIN!
+          server-password: ${{ secrets.OSSRH_PASSWORD }}   # PLAIN!
+          gpg-private-key: ${{ secrets.GPG_PRIVATE_KEY }}  # ascii-armored
           gpg-passphrase: ${{ secrets.GPG_PASSPHRASE }}
-        env:
-          OSSRH_USERNAME: ${{ secrets.OSSRH_USERNAME }}
-          OSSRH_PASSWORD: ${{ secrets.OSSRH_PASSWORD }}
 
-      # ❗ удалить, если случайно остался: settings-security.xml не нужен
+      # Не нужен master-password; гарантированно убираем
       - name: Ensure no Maven master-password file
         run: rm -f ~/.m2/settings-security.xml
 
-      # (опционально) проверить, что секретный ключ реально импортирован
+      # Жёсткая валидация: пароль не должен быть Maven-encrypted {…}
+      - name: Assert OSSRH password is plain (not Maven-encrypted)
+        run: |
+          SETTINGS=~/.m2/settings.xml
+          test -f "$SETTINGS" || (echo "::error::No ~/.m2/settings.xml"; exit 1)
+          if grep -Ezo '<server>[^<]*<id>ossrh</id>[^<]*<password>\s*\{.+\}\s*</password>' "$SETTINGS"; then
+            echo "::error::OSSRH password looks Maven-encrypted ({...}). Put PLAIN Sonatype token to OSSRH_PASSWORD secret."
+            exit 1
+          fi
+
+      # Опционально: показать, что ключ импортирован
       - name: GPG sanity
         run: gpg --list-secret-keys --keyid-format LONG
 
-      # Сборка+деплой. Passphrase передаём параметром, чтобы gpg плагин не искал мастер-пароль
+      # Выносим passphrase в env, чтобы не было депрекейта
       - name: Build, test, sign & deploy to OSSRH (staging)
+        env:
+          MAVEN_GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
         run: |
-          mvn -B -Prelease -Dgpg.passphrase="${{ secrets.GPG_PASSPHRASE }}" clean verify
-          mvn -B -Prelease -Dgpg.passphrase="${{ secrets.GPG_PASSPHRASE }}" deploy -DskipTests=false
+          mvn -B -Prelease clean verify
+          mvn -B -Prelease deploy -DskipTests=false
 
       - name: Upload JaCoCo HTML report
         if: always() && success()
@@ -80,7 +76,7 @@ jobs:
           name: jacoco-html
           path: target/site/jacoco
 
-      # Паблиш GitHub Release
+      # Release when triggered by push tag
       - name: Create GitHub Release (push tag)
         if: ${{ github.event_name == 'push' }}
         uses: softprops/action-gh-release@v2
@@ -89,6 +85,7 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+      # Release when triggered manually with version
       - name: Create GitHub Release (manual)
         if: ${{ github.event_name == 'workflow_dispatch' && inputs.version != '' }}
         uses: softprops/action-gh-release@v2
