@@ -46,26 +46,29 @@ jobs:
           OSSRH_USERNAME: ${{ secrets.OSSRH_USERNAME }}
           OSSRH_PASSWORD: ${{ secrets.OSSRH_PASSWORD }}
 
-      # 🔽 кладём passphrase в файл и даём права только owner'у
-      - name: Write GPG passphrase file
+      # 👉 валидный settings-security.xml (а не пустые {})
+      - name: Generate Maven settings-security.xml (valid master)
         run: |
-          mkdir -p ~/.gnupg
-          umask 077
-          echo "${{ secrets.GPG_PASSPHRASE }}" > ~/.gnupg/passphrase.txt
+          mkdir -p ~/.m2
+          MASTER=$(openssl rand -base64 32)
+          ENC_MASTER=$(mvn -q --encrypt-master-password "$MASTER" | tail -n1)
+          cat > ~/.m2/settings-security.xml <<EOF
+          <settingsSecurity>
+            <master>${ENC_MASTER}</master>
+          </settingsSecurity>
+          EOF
 
+      # (опционально) проверить, что секретный ключ реально импортирован
       - name: GPG sanity
         run: gpg --list-secret-keys --keyid-format LONG
 
+      # Сборка+деплой. Passphrase берётся плагином из ENV (pom.xml: ${env.GPG_PASSPHRASE})
       - name: Build, test, sign & deploy to OSSRH (staging)
-#        env:
-#          GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
         env:
-          GPG_PASSPHRASE_FILE: ${{ github.workspace }}/../.gnupg/passphrase.txt
+          GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
         run: |
           mvn -B -Prelease clean verify
           mvn -B -Prelease deploy -DskipTests=false
-
-        # -Dgpg.passphrase="${GPG_PASSPHRASE}"
 
       - name: Upload JaCoCo HTML report
         if: always() && success()
