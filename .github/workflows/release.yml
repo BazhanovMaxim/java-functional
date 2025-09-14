@@ -21,17 +21,18 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      # (опционально) создание тега при ручном запуске
+      # (optional) create tag when run manually
       - name: Create tag (workflow_dispatch)
         if: ${{ github.event_name == 'workflow_dispatch' && inputs.version != '' }}
         run: |
+          set -euxo pipefail
           VERSION="${{ inputs.version }}"
           git config user.name "${{ github.actor }}"
           git config user.email "${{ github.actor }}@users.noreply.github.com"
           git tag "v${VERSION}"
           git push origin "v${VERSION}"
 
-      # 1) Пишем СВОЙ settings.xml с plain-токенами
+      # 1) Write our own settings.xml with plain Sonatype User Token creds
       - name: Write project-local Maven settings
         env:
           OSSRH_USERNAME: ${{ secrets.OSSRH_USERNAME }}
@@ -39,34 +40,38 @@ jobs:
         run: |
           set -euxo pipefail
           mkdir -p .mvn
-          # ВАЖНО: без отступов перед <settings> и перед EOF
           cat > .mvn/settings.xml <<EOF
-         <settings xmlns="http://maven.apache.org/SETTINGS/1.0.0"
-         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-         xsi:schemaLocation="http://maven.apache.org/SETTINGS/1.0.0 https://maven.apache.org/xsd/settings-1.0.0.xsd">
-         <servers>
-         <server>
-         <id>ossrh</id>
-         <username>${OSSRH_USERNAME}</username>
-         <password>${OSSRH_PASSWORD}</password>
-         </server>
-         </servers>
-         </settings>
-         EOF
-         # Проверим, что файл реально есть и читается
-         test -f .mvn/settings.xml
-         ls -la .mvn
-         # Бонус: покажем замаскированный блок
-         awk '/<server>/,/<\/server>/' .mvn/settings.xml \
-         | sed -n '/<id>ossrh<\/id>/,/<\/server>/p' \
-         | sed -E 's#(<username>).*?(</username>)#\1***REDACTED***\2#; s#(<password>).*?(</password>)#\1***REDACTED***\2#'
+<settings xmlns="http://maven.apache.org/SETTINGS/1.0.0"
+          xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+          xsi:schemaLocation="http://maven.apache.org/SETTINGS/1.0.0 https://maven.apache.org/xsd/settings-1.0.0.xsd">
+  <servers>
+    <server>
+      <id>ossrh</id>
+      <username>${OSSRH_USERNAME}</username>
+      <password>${OSSRH_PASSWORD}</password>
+    </server>
+  </servers>
+</settings>
+EOF
+          # Verify file exists and show masked excerpt
+          test -f .mvn/settings.xml
+          awk '/<server>/,/<\/server>/' .mvn/settings.xml             | sed -n '/<id>ossrh<\/id>/,/<\/server>/p'             | sed -E 's#(<username>).*?(</username>)#\1***REDACTED***\2#; s#(<password>).*?(</password>)#\1***REDACTED***\2#'
 
+      # 2) Make sure there's no master-password file (not needed in CI)
       - name: Ensure no Maven master-password file
         run: rm -f ~/.m2/settings-security.xml
 
-      - name: GPG sanity
-        run: gpg --list-secret-keys --keyid-format LONG
+      # 3) Import GPG key (NO server creds here; we control servers via .mvn/settings.xml)
+      - name: Set up JDK 17 + import GPG
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+          cache: maven
+          gpg-private-key: ${{ secrets.GPG_PRIVATE_KEY }}
+          gpg-passphrase: ${{ secrets.GPG_PASSPHRASE }}
 
+      # 4) Build, sign and deploy to OSSRH (staging) using our settings.xml
       - name: Build, test, sign & deploy to OSSRH (staging)
         env:
           MAVEN_GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
@@ -75,15 +80,6 @@ jobs:
           mvn -B -s .mvn/settings.xml -Prelease clean verify
           mvn -B -s .mvn/settings.xml -Prelease deploy -DskipTests=false
 
-
-      # 5) Сборка + деплой. Passphrase через env, staging сделает nexus-staging-plugin
-      - name: Build, test, sign & deploy to OSSRH (staging)
-        env:
-          MAVEN_GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
-        run: |
-          mvn -B -Prelease clean verify
-          mvn -B -Prelease deploy -DskipTests=false
-
       - name: Upload JaCoCo HTML report
         if: always() && success()
         uses: actions/upload-artifact@v4
@@ -91,6 +87,7 @@ jobs:
           name: jacoco-html
           path: target/site/jacoco
 
+      # Publish GitHub release when triggered by push tag
       - name: Create GitHub Release (push tag)
         if: ${{ github.event_name == 'push' }}
         uses: softprops/action-gh-release@v2
@@ -99,6 +96,7 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+      # Publish GitHub release when triggered manually with version
       - name: Create GitHub Release (manual)
         if: ${{ github.event_name == 'workflow_dispatch' && inputs.version != '' }}
         uses: softprops/action-gh-release@v2
