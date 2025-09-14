@@ -14,6 +14,7 @@ jobs:
   build:
     runs-on: ubuntu-latest
     strategy:
+      fail-fast: false
       matrix:
         java: [ 11, 17, 21 ]
     permissions:
@@ -26,8 +27,8 @@ jobs:
         uses: actions/setup-java@v4
         with:
           distribution: temurin
-          java-version: '17'
-          cache: 'maven'
+          java-version: ${{ matrix.java }}
+          cache: maven
 
       - name: Build & Test
         run: mvn -B clean verify
@@ -36,14 +37,14 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: jacoco-html
+          name: jacoco-html-jdk-${{ matrix.java }}   # 👈 уникальное имя
           path: target/site/jacoco
 
       - name: Archive surefire reports
         if: failure()
         uses: actions/upload-artifact@v4
         with:
-          name: surefire-reports
+          name: surefire-reports-jdk-${{ matrix.java }}  # 👈 уникальное имя
           path: |
             **/target/surefire-reports
             **/target/failsafe-reports
