@@ -43,8 +43,7 @@ jobs:
           gpg-private-key: ${{ secrets.GPG_PRIVATE_KEY }}  # ascii-armored
           gpg-passphrase: ${{ secrets.GPG_PASSPHRASE }}
 
-      - name:
-          Sanity: show ossrh server in ~/.m2/settings.xml (masked)
+      - name: show ossrh server in ~/.m2/settings.xml (masked)
         run: |
           S=~/.m2/settings.xml
           echo "--- servers excerpt (masked) ---"
