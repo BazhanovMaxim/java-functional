@@ -32,36 +32,24 @@ jobs:
           git tag "v${VERSION}"
           git push origin "v${VERSION}"
 
-      # 1) Write our own settings.xml with plain Sonatype User Token creds
-      - name: Write project-local Maven settings
-        env:
-          OSSRH_USERNAME: ${{ secrets.OSSRH_USERNAME }}
-          OSSRH_PASSWORD: ${{ secrets.OSSRH_PASSWORD }}
+      # 0) Assert project-local settings exist and are sane (no Maven-encrypted {…})
+      - name: Assert .mvn/settings.xml exists and is plain
         run: |
-          set -euxo pipefail
-          mkdir -p .mvn
-          cat > .mvn/settings.xml <<EOF
-<settings xmlns="http://maven.apache.org/SETTINGS/1.0.0"
-          xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-          xsi:schemaLocation="http://maven.apache.org/SETTINGS/1.0.0 https://maven.apache.org/xsd/settings-1.0.0.xsd">
-  <servers>
-    <server>
-      <id>ossrh</id>
-      <username>${OSSRH_USERNAME}</username>
-      <password>${OSSRH_PASSWORD}</password>
-    </server>
-  </servers>
-</settings>
-EOF
-          # Verify file exists and show masked excerpt
-          test -f .mvn/settings.xml
-          awk '/<server>/,/<\/server>/' .mvn/settings.xml             | sed -n '/<id>ossrh<\/id>/,/<\/server>/p'             | sed -E 's#(<username>).*?(</username>)#\1***REDACTED***\2#; s#(<password>).*?(</password>)#\1***REDACTED***\2#'
+          set -e
+          test -f .mvn/settings.xml || (echo "::error::.mvn/settings.xml not found in repo"; exit 1)
+          # No Maven-encrypted password blocks
+          if grep -Ezo '<password>\s*\{.+\}\s*</password>' .mvn/settings.xml; then
+            echo "::error::Found Maven-encrypted {…} in .mvn/settings.xml. It must reference env vars, not encrypted values."
+            exit 1
+          fi
+          # Show masked server block for ossrh (values are env placeholders, safe to print)
+          awk '/<server>/,/<\/server>/' .mvn/settings.xml | sed -n '/<id>ossrh<\/id>/,/<\/server>/p'             | sed -E 's#(<username>).*?(</username>)#\1***MASKED***\2#; s#(<password>).*?(</password>)#\1***MASKED***\2#'
 
-      # 2) Make sure there's no master-password file (not needed in CI)
+      # 1) Ensure no Maven master-password file (not needed in CI)
       - name: Ensure no Maven master-password file
         run: rm -f ~/.m2/settings-security.xml
 
-      # 3) Import GPG key (NO server creds here; we control servers via .mvn/settings.xml)
+      # 2) Set up JDK and import GPG (servers are controlled via .mvn/settings.xml)
       - name: Set up JDK 17 + import GPG
         uses: actions/setup-java@v4
         with:
@@ -71,14 +59,20 @@ EOF
           gpg-private-key: ${{ secrets.GPG_PRIVATE_KEY }}
           gpg-passphrase: ${{ secrets.GPG_PASSPHRASE }}
 
-      # 4) Build, sign and deploy to OSSRH (staging) using our settings.xml
+      - name: GPG sanity
+        run: gpg --list-secret-keys --keyid-format LONG
+
+      # 3) Build, sign and deploy to OSSRH (staging). 
+      # .mvn/maven.config should contain "-s .mvn/settings.xml" so we don't repeat it here.
       - name: Build, test, sign & deploy to OSSRH (staging)
         env:
+          OSSRH_USERNAME: ${{ secrets.OSSRH_USERNAME }}
+          OSSRH_PASSWORD: ${{ secrets.OSSRH_PASSWORD }}
           MAVEN_GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
         run: |
           set -euxo pipefail
-          mvn -B -s .mvn/settings.xml -Prelease clean verify
-          mvn -B -s .mvn/settings.xml -Prelease deploy -DskipTests=false
+          mvn -B -Prelease clean verify
+          mvn -B -Prelease deploy -DskipTests=false
 
       - name: Upload JaCoCo HTML report
         if: always() && success()
