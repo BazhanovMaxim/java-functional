@@ -43,6 +43,43 @@ jobs:
           gpg-private-key: ${{ secrets.GPG_PRIVATE_KEY }}  # ascii-armored
           gpg-passphrase: ${{ secrets.GPG_PASSPHRASE }}
 
+      - name:
+          Sanity: show ossrh server in ~/.m2/settings.xml (masked)
+        run: |
+          S=~/.m2/settings.xml
+          echo "--- servers excerpt (masked) ---"
+          awk '
+            /<server>/,/<\/server>/ {
+              if ($0 ~ /<password>/) sub(/<password>.*<\/password>/,"<password>***REDACTED***</password>")
+              if ($0 ~ /<username>/) sub(/<username>.*<\/username>/,"<username>***REDACTED***</username>")
+              print
+            }
+          ' "$S" | sed -n '/<id>ossrh<\/id>/,/<\/server>/p'
+
+      - name: Assert password is PLAIN (not Maven-encrypted {…})
+        run: |
+          S=~/.m2/settings.xml
+          test -f "$S" || (echo "::error::No ~/.m2/settings.xml"; exit 1)
+          if grep -Ezo '<server>[^<]*<id>ossrh</id>[^<]*<password>\s*\{.+\}\s*</password>' "$S"; then
+            echo "::error::Found Maven-encrypted password {…}. Put PLAIN Sonatype token to OSSRH_PASSWORD."
+            exit 1
+          fi
+          # Безопасная телеметрия: длины и sha256 (секреты при этом не «палятся»)
+          echo "username length: $(printf "%s" "${{ secrets.OSSRH_USERNAME }}" | wc -c)"
+          echo "password length: $(printf "%s" "${{ secrets.OSSRH_PASSWORD }}" | wc -c)"
+          echo "password sha256: $(printf "%s" "${{ secrets.OSSRH_PASSWORD }}" | sha256sum | awk '{print $1}')"
+
+      - name: Ensure no project-level settings override
+        run: |
+          # Проверим, что нет .mvn/settings.xml в репозитории, который переезжает поверх
+          if [ -f ".mvn/settings.xml" ]; then
+            echo "::warning::.mvn/settings.xml found in repo — it may override runner settings"
+            awk '
+              /<server>/,/<\/server>/ {print}
+            ' .mvn/settings.xml | sed -n '/<id>ossrh<\/id>/,/<\/server>/p'
+          fi
+
+
       # Не нужен master-password; гарантированно убираем
       - name: Ensure no Maven master-password file
         run: rm -f ~/.m2/settings-security.xml
