@@ -43,3 +43,7 @@ Thumbs.db
 # === Env/local ===
 .env
 .env.*
+
+# build outputs
+**/build/
+target/
